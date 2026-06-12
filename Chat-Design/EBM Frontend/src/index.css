@@ -1,0 +1,125 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Evidence Based Medicine Chatbot Design System */
+
+@layer base {
+  :root {
+    /* Main background - light gray */
+    --background: 220 14% 96%;
+    --foreground: 222 47% 11%;
+
+    /* Card styles */
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    /* Popover */
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Primary - Emerald/Teal accent */
+    --primary: 160 84% 39%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary */
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    /* Muted */
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+
+    /* Accent */
+    --accent: 160 84% 39%;
+    --accent-foreground: 0 0% 100%;
+
+    /* Destructive */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Border & Input */
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 160 84% 39%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar - Dark navy */
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 220 14% 96%;
+    --sidebar-primary: 160 84% 39%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 222 41% 16%;
+    --sidebar-accent-foreground: 220 14% 96%;
+    --sidebar-border: 222 41% 20%;
+    --sidebar-ring: 160 84% 39%;
+    --sidebar-muted: 220 9% 60%;
+  }
+
+  .dark {
+    /* Darkish gray theme */
+    --background: 220 6% 14%;
+    --foreground: 0 0% 100%;
+
+    --card: 220 6% 18%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 220 6% 18%;
+    --popover-foreground: 0 0% 100%;
+
+    --primary: 160 70% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 6% 22%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 220 6% 22%;
+    --muted-foreground: 220 9% 65%;
+
+    --accent: 160 70% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 6% 26%;
+    --input: 220 6% 26%;
+    --ring: 160 70% 45%;
+
+    --sidebar-background: 220 6% 10%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 160 70% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 6% 18%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 220 6% 22%;
+    --sidebar-ring: 160 70% 45%;
+    --sidebar-muted: 220 9% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+}
+
+@layer components {
+  .chat-input {
+    @apply w-full rounded-full border border-border bg-card px-6 py-4 pr-14 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-shadow;
+  }
+  
+  .sidebar-item {
+    @apply flex items-center gap-3 px-4 py-3 text-sidebar-foreground/80 hover:bg-sidebar-accent rounded-lg transition-colors cursor-pointer;
+  }
+  
+  .sidebar-item-active {
+    @apply bg-sidebar-accent text-sidebar-foreground;
+  }
+}
