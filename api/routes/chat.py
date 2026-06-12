@@ -1,11 +1,11 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.database import get_db
 from api.models import Message
-from api.schemas import ChatRequest, ChatResponse, SessionResponse, ChatMessage
+from api.schemas import ChatRequest, ChatResponse, SessionResponse, ChatMessage, SessionUpdate
 from api.services.graph_rag_service import GraphRAGService
 from api.repositories.chat_history_repo import ChatHistoryRepository
 
@@ -31,6 +31,40 @@ async def create_session(repo: ChatHistoryRepository = Depends(get_chat_repo)):
     Creates a new chat session manually using injected repository.
     """
     return await repo.create_session("New Conversation")
+
+
+@router.patch("/sessions/{session_id}", response_model=SessionResponse)
+async def rename_session(
+    session_id: int,
+    payload: SessionUpdate,
+    repo: ChatHistoryRepository = Depends(get_chat_repo),
+):
+    """
+    Renames an existing chat session.
+    """
+    if payload.title is None or not payload.title.strip():
+        raise HTTPException(status_code=400, detail="A non-empty title is required.")
+
+    session = await repo.update_session(session_id, payload.title.strip())
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    return session
+
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_session(
+    session_id: int,
+    repo: ChatHistoryRepository = Depends(get_chat_repo),
+):
+    """
+    Deletes a chat session and its messages.
+    """
+    deleted = await repo.delete_session(session_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @router.get("/sessions/{session_id}/messages", response_model=List[ChatMessage])
 async def get_session_messages(

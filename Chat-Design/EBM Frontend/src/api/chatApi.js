@@ -14,7 +14,16 @@ async function apiFetch(url, { timeoutMs = 60000, ...options } = {}) {
       const text = await res.text();
       throw new Error(text || `HTTP ${res.status}`);
     }
-    return res.json();
+    if (res.status === 204) {
+      return null;
+    }
+
+    const contentType = res.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      return res.json();
+    }
+
+    return res.text();
   } catch (err) {
     clearTimeout(timerId);
     throw err;
