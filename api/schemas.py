@@ -39,6 +39,11 @@ class ChatMessage(BaseModel):
     timestamp: datetime
 
 
+class ChatHistoryItem(BaseModel):
+    role: str
+    content: str
+
+
 class SessionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -49,7 +54,7 @@ class SessionResponse(BaseModel):
 
 
 class SessionDetail(SessionResponse):
-    messages: List[ChatMessage] = []
+    messages: List[ChatMessage] = Field(default_factory=list)
 
 
 class SessionCreate(BaseModel):
@@ -65,12 +70,13 @@ class ChatRequest(BaseModel):
     query: str
     session_id: Optional[int] = None
     owner_id: Optional[int] = None
+    history: List[ChatHistoryItem] = Field(default_factory=list)
 
 
 class ChatResponse(BaseModel):
     answer: str
     session_id: int
-    source_nodes: List[str] = []
+    source_nodes: List[str] = Field(default_factory=list)
 
 
 class ProcessRequest(BaseModel):

@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
 
 from api.database import get_db
-from api.models import ChatMessage as DB_ChatMessage
+from api.models import Message
 from api.schemas import ChatRequest, ChatResponse, SessionResponse, ChatMessage
 from api.services.graph_rag_service import GraphRAGService
 from api.repositories.chat_history_repo import ChatHistoryRepository
@@ -15,11 +16,14 @@ def get_chat_repo(db: AsyncSession = Depends(get_db)):
     return ChatHistoryRepository(db)
 
 @router.get("/sessions", response_model=List[SessionResponse])
-async def list_sessions(repo: ChatHistoryRepository = Depends(get_chat_repo)):
+async def list_sessions(
+    owner_id: Optional[int] = Query(default=None),
+    repo: ChatHistoryRepository = Depends(get_chat_repo),
+):
     """
     Returns all chat sessions using injected repository.
-    """ck
-    return await repo.list_sessions()
+    """
+    return await repo.list_sessions(user_id=owner_id)
 
 @router.post("/sessions", response_model=SessionResponse)
 async def create_session(repo: ChatHistoryRepository = Depends(get_chat_repo)):
@@ -72,13 +76,18 @@ async def chat_query(
     # 1. Determine Session ID (Create if missing)
     session_id = request.session_id
     if session_id is None:
-        new_session = await repo.create_session(f"Chat: {request.query[:30]}...")
+        new_session = await repo.create_session(
+            title=f"Chat: {request.query[:30]}...",
+            user_id=request.owner_id,
+        )
         session_id = new_session.id
     else:
         # Verify existing session
         session = await repo.get_session(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Chat Session not found.")
+        if request.owner_id is not None and session.user_id not in (None, request.owner_id):
+            raise HTTPException(status_code=403, detail="Chat Session does not belong to this user.")
         session_id = session.id
 
     # 2. Fetch history from Repository
@@ -94,8 +103,8 @@ async def chat_query(
 
     # 4. Save both messages to DB
     await repo.save_messages([
-        DB_ChatMessage(session_id=session_id, role="user", content=request.query),
-        DB_ChatMessage(session_id=session_id, role="assistant", content=answer)
+        Message(session_id=session_id, role="user", content=request.query),
+        Message(session_id=session_id, role="assistant", content=answer)
     ])
 
     return ChatResponse(
