@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, ArrowRight, AlertCircle, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import SparkleIcon from "@/components/SparkleIcon";
 import { loginUser } from "@/api/chatApi";
@@ -23,6 +23,7 @@ const Login = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/";
+  const registered = searchParams.get("registered") === "1";
   const { login } = useAuth();
 
   const [identifier, setIdentifier] = useState("");
@@ -36,8 +37,8 @@ const Login = () => {
     setError("");
     setLoading(true);
     try {
-      const user = await loginUser(identifier, password);
-      login(user);
+      const { access_token, user } = await loginUser(identifier, password);
+      login(user, access_token);
       navigate(redirectTo, { replace: true });
     } catch (err) {
       let msg = err.message || "Invalid credentials.";
@@ -86,6 +87,13 @@ const Login = () => {
             <h2 className="text-2xl font-bold text-foreground mb-1">Sign in</h2>
             <p className="text-muted-foreground text-sm">Enter your email and password to continue.</p>
           </div>
+
+          {registered && (
+            <div className="mb-5 flex items-center gap-2 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 text-sm">
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              Account created successfully. Please sign in.
+            </div>
+          )}
 
           {error && (
             <div className="mb-5 flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm">

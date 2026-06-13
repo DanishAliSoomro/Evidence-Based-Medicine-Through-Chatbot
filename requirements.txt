@@ -7,6 +7,9 @@ pydantic
 requests
 neo4j
 
+# Auth
+python-jose[cryptography]
+
 # FastAPI & Backend Dependencies
 SQLAlchemy>=2.0.28
 fastapi

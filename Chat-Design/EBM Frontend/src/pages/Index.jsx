@@ -43,7 +43,7 @@ const Index = () => {
   // Load this user's sessions on mount
   useEffect(() => {
     if (!user) return;
-    api.listSessions(user.id)
+    api.listSessions()
       .then((sessions) => setConversations(sessions.map(toConv)))
       .catch(() => {});
   }, [user?.id]);
@@ -57,13 +57,21 @@ const Index = () => {
     setActiveChat(sid);
     api.getSessionMessages(sid)
       .then((msgs) => setMessages(msgs.map(toMsg)))
-      .catch(() => {});
+      .catch((err) => {
+        if (err?.status === 403) {
+          navigate("/403", { replace: true });
+        } else if (err?.status === 404) {
+          navigate("/", { replace: true });
+        } else {
+          toast({ title: "Error", description: "Failed to load conversation.", variant: "destructive" });
+        }
+      });
   }, [sessionIdParam, user?.id]);
 
   const refreshSessions = useCallback(async () => {
     if (!user) return;
     try {
-      const sessions = await api.listSessions(user.id);
+      const sessions = await api.listSessions();
       setConversations(sessions.map(toConv));
     } catch {}
   }, [user?.id]);
@@ -85,7 +93,7 @@ const Index = () => {
     setIsLoading(true);
 
     try {
-      const data = await api.sendMessage(content, currentSessionId.current, user?.id ?? null);
+      const data = await api.sendMessage(content, currentSessionId.current);
       currentSessionId.current = data.session_id;
       setActiveChat(data.session_id);
       // replaceState avoids remounting Index when route changes from / to /chat/:id

@@ -1,44 +1,52 @@
 const BASE = "/api";
 
+function getToken() {
+  return localStorage.getItem("ebm-token");
+}
+
 async function apiFetch(url, { timeoutMs = 60000, ...options } = {}) {
   const controller = new AbortController();
   const timerId = setTimeout(() => controller.abort(), timeoutMs);
+
+  const token = getToken();
+  const headers = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...options.headers,
+  };
+
   try {
     const res = await fetch(BASE + url, {
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
       ...options,
+      headers,
+      signal: controller.signal,
     });
     clearTimeout(timerId);
+
     if (!res.ok) {
       const text = await res.text();
-      throw new Error(text || `HTTP ${res.status}`);
+      const err = new Error(text || `HTTP ${res.status}`);
+      err.status = res.status;
+      throw err;
     }
-    if (res.status === 204) {
-      return null;
-    }
+    if (res.status === 204) return null;
 
     const contentType = res.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      return res.json();
-    }
-
-    return res.text();
+    return contentType.includes("application/json") ? res.json() : res.text();
   } catch (err) {
     clearTimeout(timerId);
     throw err;
   }
 }
 
-export const sendMessage = (query, sessionId = null, ownerId = null) =>
+export const sendMessage = (query, sessionId = null) =>
   apiFetch("/chat", {
     timeoutMs: 120000,
     method: "POST",
-    body: JSON.stringify({ query, session_id: sessionId, owner_id: ownerId }),
+    body: JSON.stringify({ query, session_id: sessionId }),
   });
 
-export const listSessions = (ownerId = null) =>
-  apiFetch(ownerId != null ? `/sessions?owner_id=${ownerId}` : "/sessions");
+export const listSessions = () => apiFetch("/sessions");
 
 export const getSessionMessages = (sessionId) =>
   apiFetch(`/sessions/${sessionId}/messages`);
@@ -52,31 +60,29 @@ export const renameSession = (sessionId, title) =>
     body: JSON.stringify({ title }),
   });
 
-// POST /api/login — identifier can be username or email
+// Returns { access_token, user }
 export const loginUser = (identifier, password) =>
   apiFetch("/login", {
     method: "POST",
     body: JSON.stringify({ identifier, password }),
   });
 
-// POST /api/users — register new user
+// Returns created user object
 export const registerUser = (username, email, password) =>
   apiFetch("/users", {
     method: "POST",
     body: JSON.stringify({ username, email, password }),
   });
 
-
-export const deleteAllSessions = async (ownerId = null) => {
-  const sessions = await listSessions(ownerId);
+export const deleteAllSessions = async () => {
+  const sessions = await listSessions();
   await Promise.all(sessions.map((s) => deleteSession(s.id)));
 };
 
-export const exportAllSessions = async (ownerId = null) => {
-  const sessions = await listSessions(ownerId);
-  const active = sessions.filter((s) => !s.is_deleted);
+export const exportAllSessions = async () => {
+  const sessions = await listSessions();
   const withMessages = await Promise.all(
-    active.map(async (s) => {
+    sessions.map(async (s) => {
       const messages = await getSessionMessages(s.id);
       return { ...s, messages };
     })

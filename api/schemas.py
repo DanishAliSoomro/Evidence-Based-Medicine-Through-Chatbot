@@ -29,6 +29,11 @@ class UserResponse(BaseModel):
     created_at: datetime
 
 
+class TokenResponse(BaseModel):
+    access_token: str
+    user: UserResponse
+
+
 class ChatMessage(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -69,8 +74,7 @@ class SessionUpdate(BaseModel):
 class ChatRequest(BaseModel):
     query: str
     session_id: Optional[int] = None
-    owner_id: Optional[int] = None
-    history: List[ChatHistoryItem] = Field(default_factory=list)
+
 
 
 class ChatResponse(BaseModel):

@@ -6,7 +6,10 @@ import { cva } from "class-variance-authority";
 import { Plus, User, Settings, Users, PanelLeftClose, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { useLanguage } from "@/hooks/use-language";
 import ConversationList from "./ConversationList";
+
+const s = (lang, en, ur) => (lang === "ur" ? ur : en);
 
 /* ---------- DropdownMenu (for user account footer only) ---------- */
 const DropdownMenu = DropdownMenuPrimitive.Root;
@@ -57,12 +60,13 @@ const ChatSidebar = ({
 }) => {
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const [lang] = useLanguage();
 
   return (
     <aside className="w-64 h-screen bg-sidebar flex flex-col">
       {/* Header */}
       <div className="p-3 flex items-center justify-between border-b border-sidebar-border">
-        <span className="font-semibold text-sidebar-foreground">Chats</span>
+        <span className="font-semibold text-sidebar-foreground">{s(lang, "Chats", "چیٹس")}</span>
         <button
           onClick={onClose}
           className="p-1.5 rounded-md hover:bg-sidebar-accent text-sidebar-foreground/70 hover:text-sidebar-foreground transition-colors"
@@ -76,7 +80,7 @@ const ChatSidebar = ({
       <div className="p-3 pb-1">
         <button onClick={onNewChat} className="sidebar-item sidebar-item-active w-full">
           <Plus className="w-5 h-5" />
-          <span className="font-medium">New chat</span>
+          <span className="font-medium">{s(lang, "New chat", "نئی چیٹ")}</span>
         </button>
       </div>
 
@@ -114,11 +118,11 @@ const ChatSidebar = ({
               className="flex items-center gap-2 cursor-pointer"
             >
               <Settings className="w-4 h-4" />
-              <span>Settings</span>
+              <span>{s(lang, "Settings", "ترتیبات")}</span>
             </DropdownMenuItem>
             <DropdownMenuItem className="flex items-center gap-2 cursor-pointer">
               <Users className="w-4 h-4" />
-              <span>Accounts</span>
+              <span>{s(lang, "Accounts", "اکاؤنٹس")}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -126,7 +130,7 @@ const ChatSidebar = ({
               className="flex items-center gap-2 cursor-pointer text-destructive focus:text-destructive"
             >
               <LogOut className="w-4 h-4" />
-              <span>Log out</span>
+              <span>{s(lang, "Log out", "لاگ آؤٹ")}</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

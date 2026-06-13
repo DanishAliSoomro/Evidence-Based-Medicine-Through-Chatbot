@@ -1,31 +1,31 @@
 import { useState } from "react";
 
-const STORAGE_KEY = "ebm-user";
+const USER_KEY  = "ebm-user";
+const TOKEN_KEY = "ebm-token";
 
-const readUser = () => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    return stored ? JSON.parse(stored) : null;
-  } catch {
-    return null;
-  }
-};
+const readUser  = () => { try { const s = localStorage.getItem(USER_KEY);  return s ? JSON.parse(s) : null; } catch { return null; } };
+const readToken = () => localStorage.getItem(TOKEN_KEY) ?? null;
 
 export const useAuth = () => {
-  const [user, setUser] = useState(readUser);
+  const [user,  setUser]  = useState(readUser);
+  const [token, setToken] = useState(readToken);
 
-  const login = (userData) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+  const login = (userData, accessToken) => {
+    localStorage.setItem(USER_KEY,  JSON.stringify(userData));
+    localStorage.setItem(TOKEN_KEY, accessToken);
     setUser(userData);
+    setToken(accessToken);
   };
 
   const logout = () => {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(USER_KEY);
+    localStorage.removeItem(TOKEN_KEY);
     setUser(null);
+    setToken(null);
   };
 
-  return { user, login, logout };
+  return { user, token, login, logout };
 };
 
-// Synchronous read — safe to call outside React (e.g. in API handlers)
-export const getStoredUser = () => readUser();
+export const getStoredUser  = () => readUser();
+export const getStoredToken = () => readToken();

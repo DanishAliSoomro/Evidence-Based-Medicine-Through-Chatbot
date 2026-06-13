@@ -42,12 +42,16 @@ class ChatHistoryRepository:
     async def get_user(self, user_id: int) -> Optional[User]:
         return await self.db.get(User, user_id)
 
-    async def login_user(self, identifier: str, password: str) -> Optional[User]:
+    async def get_user_by_email(self, email: str) -> Optional[User]:
+        result = await self.db.execute(select(User).where(User.email == email))
+        return result.scalar_one_or_none()
+
+    async def login_user(self, identifier: str, password_hash: str) -> Optional[User]:
         result = await self.db.execute(
             select(User).where((User.username == identifier) | (User.email == identifier))
         )
         user = result.scalar_one_or_none()
-        if not user or user.password_hash != password:
+        if not user or user.password_hash != password_hash:
             return None
         return user
 

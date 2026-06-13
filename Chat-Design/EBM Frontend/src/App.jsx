@@ -14,6 +14,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
+import NotAuthorized from "./pages/NotAuthorized";
 import General from "./pages/settings/General";
 import Chat from "./pages/settings/Chat";
 import DataControl from "./pages/settings/DataControl";
@@ -130,6 +131,7 @@ const App = () => (
             <Route path="datacontrol" element={<DataControl />} />
             <Route path="account" element={<Account />} />
           </Route>
+<Route path="/403" element={<NotAuthorized />} />
 <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

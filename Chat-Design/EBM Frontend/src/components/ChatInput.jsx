@@ -1,10 +1,12 @@
 import { Send, Paperclip, Image, FileText, X } from "lucide-react";
 import { useState, useRef } from "react";
+import { useLanguage } from "@/hooks/use-language";
 const ChatInput = ({ onSend, disabled }) => {
     const [message, setMessage] = useState("");
     const [showAttachMenu, setShowAttachMenu] = useState(false);
     const fileInputRef = useRef(null);
     const [attachmentType, setAttachmentType] = useState(null);
+    const [lang] = useLanguage();
     const handleSubmit = (e) => {
         e.preventDefault();
         if (message.trim() && !disabled) {
@@ -48,7 +50,7 @@ const ChatInput = ({ onSend, disabled }) => {
             </div>)}
         </div>
 
-        <input type="text" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Ask about medical evidence, research, or clinical guidelines..." className="chat-input pl-16" disabled={disabled}/>
+        <input type="text" value={message} onChange={(e) => setMessage(e.target.value)} placeholder={lang === "ur" ? "طبی شواہد، تحقیق، یا طبی رہنما اصولوں کے بارے میں پوچھیں..." : "Ask about medical evidence, research, or clinical guidelines..."} className="chat-input pl-16" disabled={disabled}/>
         <button type="submit" disabled={!message.trim() || disabled} className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground disabled:opacity-50 disabled:hover:bg-muted disabled:hover:text-muted-foreground transition-colors">
           <Send className="w-5 h-5"/>
         </button>

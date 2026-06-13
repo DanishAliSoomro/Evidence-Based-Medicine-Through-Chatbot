@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-from api.routes import chat, ingest, health
+from api.routes import chat, ingest, health, auth
 from api.database import engine, Base
 import api.models  # noqa: F401 — registers models with SQLAlchemy metadata
 
@@ -29,6 +29,7 @@ async def startup_event():
 
 
 app.include_router(health.router, prefix="/api", tags=["Health"])
+app.include_router(auth.router,   prefix="/api", tags=["Auth"])
 app.include_router(chat.router,   prefix="/api", tags=["Chat"])
 app.include_router(ingest.router, prefix="/api", tags=["Ingest"])
 

@@ -1,9 +1,13 @@
 import { useRef, useEffect } from "react";
+import { useLanguage } from "@/hooks/use-language";
 import SparkleIcon from "./SparkleIcon";
 import ChatInput from "./ChatInput";
 import ChatMessage from "./ChatMessage";
+const s = (lang, en, ur) => (lang === "ur" ? ur : en);
+
 const ChatMain = ({ messages, onSendMessage, onBookmark, isLoading, sidebarOpen, onToggleSidebar }) => {
     const messagesEndRef = useRef(null);
+    const [lang] = useLanguage();
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }, [messages]);
@@ -32,7 +36,7 @@ const ChatMain = ({ messages, onSendMessage, onBookmark, isLoading, sidebarOpen,
             </h1>
             
             <p className="mt-3 text-muted-foreground text-center max-w-xl">
-              Ask me anything about medical research, clinical guidelines, or evidence-based practices
+              {s(lang, "Ask me anything about medical research, clinical guidelines, or evidence-based practices", "طبی تحقیق، طبی رہنما اصولوں، یا شواہد پر مبنی طریقوں کے بارے میں کچھ بھی پوچھیں")}
             </p>
           </div>)}
       </div>
@@ -42,7 +46,7 @@ const ChatMain = ({ messages, onSendMessage, onBookmark, isLoading, sidebarOpen,
         <ChatInput onSend={onSendMessage} disabled={isLoading}/>
         
         <p className="mt-4 text-sm text-muted-foreground text-center">
-          This chatbot provides information for educational purposes. Always consult healthcare professionals for medical decisions.
+          {s(lang, "This chatbot provides information for educational purposes. Always consult healthcare professionals for medical decisions.", "یہ چیٹ بوٹ صرف تعلیمی مقاصد کے لیے معلومات فراہم کرتا ہے۔ طبی فیصلوں کے لیے ہمیشہ صحت کے ماہرین سے مشورہ کریں۔")}
         </p>
       </div>
     </main>);

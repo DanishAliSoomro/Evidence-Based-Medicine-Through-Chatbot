@@ -5,7 +5,6 @@ import { Mail, Lock, Eye, EyeOff, ArrowRight, UserCircle, AlertCircle } from "lu
 import { cn } from "@/lib/utils";
 import SparkleIcon from "@/components/SparkleIcon";
 import { registerUser } from "@/api/chatApi";
-import { useAuth } from "@/hooks/use-auth";
 
 const Input = React.forwardRef(({ className, type, ...props }, ref) => (
   <input
@@ -23,7 +22,7 @@ const Signup = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTo = searchParams.get("redirect") || "/";
-  const { login } = useAuth();
+
 
   const [username, setUsername]   = useState("");
   const [email, setEmail]         = useState("");
@@ -53,9 +52,8 @@ const Signup = () => {
 
     setLoading(true);
     try {
-      const user = await registerUser(username.trim(), email.trim(), password);
-      login(user);
-      navigate(redirectTo, { replace: true });
+      await registerUser(username.trim(), email.trim(), password);
+      navigate("/login?registered=1", { replace: true });
     } catch (err) {
       let msg = err.message || "Sign up failed.";
       try { msg = JSON.parse(msg).detail || msg; } catch {}

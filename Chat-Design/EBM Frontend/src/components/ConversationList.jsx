@@ -4,6 +4,9 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { MessageSquare, MoreHorizontal, Trash2, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import { useLanguage } from "@/hooks/use-language";
+
+const s = (lang, en, ur) => (lang === "ur" ? ur : en);
 
 /* ---------- DropdownMenu ---------- */
 const DropdownMenu        = DropdownMenuPrimitive.Root;
@@ -43,6 +46,7 @@ const DropdownMenuItem = React.forwardRef(({ className, ...props }, ref) => (
 const ConversationList = ({ conversations, activeChat, onSelectChat, onDeleteChat }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
+  const [lang] = useLanguage();
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return conversations;
@@ -68,7 +72,7 @@ const ConversationList = ({ conversations, activeChat, onSelectChat, onDeleteCha
       <div className="px-3 pb-2 space-y-2">
         <button onClick={toggleSearch} className="sidebar-item w-full">
           <Search className="w-5 h-5" />
-          <span>Search chats</span>
+          <span>{s(lang, "Search chats", "چیٹس تلاش کریں")}</span>
         </button>
 
         {isSearching && (
@@ -77,7 +81,7 @@ const ConversationList = ({ conversations, activeChat, onSelectChat, onDeleteCha
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search conversations..."
+              placeholder={s(lang, "Search conversations...", "گفتگو تلاش کریں...")}
               className="w-full px-3 py-2 pr-8 bg-sidebar-accent text-sidebar-foreground placeholder:text-sidebar-foreground/50 rounded-lg text-sm border border-sidebar-border focus:outline-none focus:ring-1 focus:ring-primary"
               autoFocus
             />
@@ -137,9 +141,9 @@ const ConversationList = ({ conversations, activeChat, onSelectChat, onDeleteCha
             </div>
           ))
         ) : searchQuery ? (
-          <p className="text-sm text-sidebar-foreground/50 text-center py-4">No chats found</p>
+          <p className="text-sm text-sidebar-foreground/50 text-center py-4">{s(lang, "No chats found", "کوئی چیٹ نہیں ملی")}</p>
         ) : (
-          <p className="text-sm text-sidebar-foreground/50 text-center py-4">No conversations yet</p>
+          <p className="text-sm text-sidebar-foreground/50 text-center py-4">{s(lang, "No conversations yet", "ابھی تک کوئی گفتگو نہیں")}</p>
         )}
       </div>
     </>
