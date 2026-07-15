@@ -11,14 +11,11 @@ def _now():
 class User(Base):
     __tablename__ = "users"
 
-    id             = Column(Integer, primary_key=True, index=True)
-    username       = Column(String, nullable=False, index=True)
-    email          = Column(String(255), unique=True, index=True, nullable=False)
-    password_hash  = Column(String(255), nullable=True)
-    oauth_provider = Column(String(80),  nullable=True)
-    oauth_id       = Column(String(255), nullable=True)
-    auth_type      = Column(String(20),  default="local", nullable=False)
-    created_at     = Column(DateTime,    default=_now, nullable=False)
+    id            = Column(Integer, primary_key=True, index=True)
+    username      = Column(String, nullable=False, index=True)
+    email         = Column(String(255), unique=True, index=True, nullable=False)
+    password_hash = Column(String(255), nullable=True)
+    created_at    = Column(DateTime, default=_now, nullable=False)
 
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
 

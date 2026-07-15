@@ -1,5 +1,7 @@
+import json
 from api.repositories.neo4j_repsitory import Neo4jRepository
 from api.services.text_chunker import TextChunker
+from api.services.prompts import GUARDRAIL, PICO_Rules
 from openai import OpenAI
 from config import settings
 
@@ -14,6 +16,46 @@ class GraphRAGService:
         )
         self.conversation_history = []
 
+    def _classify_query(self, query: str) -> str:
+        completion = self.client.chat.completions.create(
+            model=settings.AZURE_DEPLOYMENT_NAME,
+            messages=[
+                {"role": "system", "content": GUARDRAIL},
+                {"role": "user",   "content": query},
+            ],
+            temperature=0,
+            max_tokens=20,
+        )
+        raw = completion.choices[0].message.content.strip()
+        try:
+            return json.loads(raw).get("class", "clinical")
+        except Exception:
+            return "clinical"
+
+    def _run_pico(self, query: str) -> str:
+        raw = self.client.chat.completions.create(
+            model=settings.AZURE_DEPLOYMENT_NAME,
+            messages=[
+                {"role": "system", "content": PICO_Rules},
+                {"role": "user",   "content": query},
+            ],
+            temperature=0,
+            max_tokens=300,
+        ).choices[0].message.content.strip()
+
+        if "Status: VALID" not in raw:
+            return query
+
+        lines = {l.split(":")[0].strip(): l.split(":", 1)[1].strip()
+                 for l in raw.splitlines() if ":" in l and l.split(":")[0].strip() in ("P", "I", "C", "O")}
+        parts = [f"In {lines['P']}" if lines.get("P") else "",
+                 f"does {lines['I']}" if lines.get("I") else "",
+                 f"compared to {lines['C']}" if lines.get("C") else "",
+                 f"improve {lines['O']}" if lines.get("O") else ""]
+        structured = " ".join(p for p in parts if p) + "?"
+        print(f"[PICO] VALID → {structured}")
+        return structured
+
     def perform_graph_rag(self, user_query: str) -> str:
         """
         Step-by-step GraphRAG execution with conversation history:
@@ -23,11 +65,25 @@ class GraphRAGService:
         4. LLM Generation with history
         """
 
-        # TODO: every step can also be implemented as SSE for showing progress in the frontend. For now, we keep it simple.
+        # Guardrail — classify before running GraphRAG
+        query_class = self._classify_query(user_query)
+        print(f"[Guardrail] Class: {query_class}")
+
+        if query_class == "general":
+            return "I can only assist with medical and clinical questions. Please ask something related to healthcare or medicine."
+
+        if query_class == "casual_medical":
+            return "This looks like a personal health question. I'm designed for clinical and research queries. For personal medical advice, please consult a healthcare professional."
+
+        if query_class == "case_description":
+            return "I can see you've described a patient case. What specifically would you like to know? For example: are you looking for evidence on a particular treatment, outcome, or diagnosis related to this case?"
+
+        # PICO enhancement — if VALID, use structured query for retrieval
+        retrieval_query = self._run_pico(user_query)
 
         # 1. Vector Search Entry Point
         print("\n[Step 1] Embedding query and performing vector search...")
-        query_embedding = self.chunker.compute_embeddings([user_query])[0]
+        query_embedding = self.chunker.compute_embeddings([retrieval_query])[0]
 
         # 2. Graph Traversal Expansion
         print("[Step 2] Traversing graph for related entities and facts...")
@@ -61,6 +117,7 @@ class GraphRAGService:
             {graph_context if graph_context else "No relational facts found."}
 
             USER QUESTION: {user_query}
+            (Note: retrieval was performed using an enhanced structured query for better context accuracy)
 
             Moreover, Please note the following guidelines for answering:
             You are a smart content formatter and explainer.

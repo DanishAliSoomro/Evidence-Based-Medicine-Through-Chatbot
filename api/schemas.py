@@ -7,9 +7,6 @@ class UserCreate(BaseModel):
     username: str
     email: str
     password: Optional[str] = None
-    oauth_provider: Optional[str] = None
-    oauth_id: Optional[str] = None
-    auth_type: Optional[str] = "local"
 
 
 class LoginRequest(BaseModel):
@@ -23,15 +20,16 @@ class UserResponse(BaseModel):
     id: int
     username: str
     email: str
-    oauth_provider: Optional[str] = None
-    oauth_id: Optional[str] = None
-    auth_type: str = "local"
     created_at: datetime
 
 
 class TokenResponse(BaseModel):
     access_token: str
     user: UserResponse
+
+
+class UsernameUpdate(BaseModel):
+    username: str = Field(..., min_length=1, max_length=50)
 
 
 class ChatMessage(BaseModel):

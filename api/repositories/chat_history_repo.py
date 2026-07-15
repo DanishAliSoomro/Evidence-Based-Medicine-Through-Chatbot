@@ -18,17 +18,11 @@ class ChatHistoryRepository:
         username: str,
         email: Optional[str] = None,
         password_hash: Optional[str] = None,
-        oauth_provider: Optional[str] = None,
-        oauth_id: Optional[str] = None,
-        auth_type: str = "local",
     ) -> User:
         user = User(
             username=username,
             email=email,
             password_hash=password_hash,
-            oauth_provider=oauth_provider,
-            oauth_id=oauth_id,
-            auth_type=auth_type,
         )
         self.db.add(user)
         await self.db.commit()
@@ -41,6 +35,23 @@ class ChatHistoryRepository:
 
     async def get_user(self, user_id: int) -> Optional[User]:
         return await self.db.get(User, user_id)
+
+    async def update_username(self, user_id: int, username: str) -> Optional[User]:
+        user = await self.db.get(User, user_id)
+        if not user:
+            return None
+        user.username = username
+        await self.db.commit()
+        await self.db.refresh(user)
+        return user
+
+    async def delete_user(self, user_id: int) -> bool:
+        user = await self.db.get(User, user_id)
+        if not user:
+            return False
+        await self.db.delete(user)
+        await self.db.commit()
+        return True
 
     async def get_user_by_email(self, email: str) -> Optional[User]:
         result = await self.db.execute(select(User).where(User.email == email))
@@ -113,3 +124,15 @@ class ChatHistoryRepository:
             return
         self.db.add_all(messages)
         await self.db.commit()
+
+    async def delete_all_user_sessions(self, user_id: int) -> int:
+        session_ids_result = await self.db.execute(
+            select(Session.id).where(Session.user_id == user_id)
+        )
+        session_ids = [row[0] for row in session_ids_result.fetchall()]
+        if not session_ids:
+            return 0
+        await self.db.execute(delete(Message).where(Message.session_id.in_(session_ids)))
+        result = await self.db.execute(delete(Session).where(Session.user_id == user_id))
+        await self.db.commit()
+        return result.rowcount

@@ -1,7 +1,9 @@
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from api.utils.csv_exporter import build_session_csv
 
 from api.database import get_db
 from api.dependencies import get_current_user
@@ -83,10 +85,41 @@ async def get_session_messages(
     return await repo.get_session_messages(session_id)
 
 
+@router.get("/sessions/{session_id}/export")
+async def export_session_csv(
+    session_id: int,
+    user_id: int = Depends(get_current_user),
+    repo: ChatHistoryRepository = Depends(get_chat_repo),
+):
+    session = await repo.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found.")
+    if session.user_id != user_id:
+        raise HTTPException(status_code=403, detail="Not your session.")
+
+    messages = await repo.get_session_messages(session_id)
+    csv_content = build_session_csv(messages)
+
+    filename = f"session-{session_id}.csv"
+    return StreamingResponse(
+        iter([csv_content]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.delete("/sessions", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_all_my_sessions(
+    user_id: int = Depends(get_current_user),
+    repo: ChatHistoryRepository = Depends(get_chat_repo),
+):
+    await repo.delete_all_user_sessions(user_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/chat/test", response_model=ChatResponse)
 async def chat_test(request: ChatRequest):
     with GraphRAGService() as service:
-        service.conversation_history = [{"role": m.role, "content": m.content} for m in request.history]
         answer = service.perform_graph_rag(request.query)
         return ChatResponse(answer=answer, session_id=0, source_nodes=[])
 
