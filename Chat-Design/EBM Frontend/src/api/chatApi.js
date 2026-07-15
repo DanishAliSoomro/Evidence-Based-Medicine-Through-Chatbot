@@ -74,18 +74,26 @@ export const registerUser = (username, email, password) =>
     body: JSON.stringify({ username, email, password }),
   });
 
-export const deleteAllSessions = async () => {
-  const sessions = await listSessions();
-  await Promise.all(sessions.map((s) => deleteSession(s.id)));
-};
+export const deleteAllSessions = () =>
+  apiFetch("/sessions", { method: "DELETE" });
 
-export const exportAllSessions = async () => {
-  const sessions = await listSessions();
-  const withMessages = await Promise.all(
-    sessions.map(async (s) => {
-      const messages = await getSessionMessages(s.id);
-      return { ...s, messages };
-    })
-  );
-  return withMessages;
+export const updateUsername = (username) =>
+  apiFetch("/users/me", {
+    method: "PATCH",
+    body: JSON.stringify({ username }),
+  });
+
+export const exportSessionCsv = async (sessionId, filename) => {
+  const token = getToken();
+  const res = await fetch(`${BASE}/sessions/${sessionId}/export`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 };

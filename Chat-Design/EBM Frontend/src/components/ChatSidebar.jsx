@@ -120,7 +120,10 @@ const ChatSidebar = ({
               <Settings className="w-4 h-4" />
               <span>{s(lang, "Settings", "ترتیبات")}</span>
             </DropdownMenuItem>
-            <DropdownMenuItem className="flex items-center gap-2 cursor-pointer">
+            <DropdownMenuItem
+              onClick={() => navigate("/settings/account")}
+              className="flex items-center gap-2 cursor-pointer"
+            >
               <Users className="w-4 h-4" />
               <span>{s(lang, "Accounts", "اکاؤنٹس")}</span>
             </DropdownMenuItem>

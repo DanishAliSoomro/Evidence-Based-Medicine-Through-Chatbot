@@ -2,35 +2,54 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { UserCircle2, Mail, AlertTriangle } from "lucide-react";
 import { useLanguage } from "@/hooks/use-language";
+import { useAuth } from "@/hooks/use-auth";
 import { toast } from "@/hooks/use-toast";
+import { updateUsername } from "@/api/chatApi";
 import { Section, Button, Input, DeleteDialog } from "./SettingsShared";
 
 const Account = () => {
   const navigate = useNavigate();
   const [language] = useLanguage();
+  const { user, updateUser } = useAuth();
   const isUrdu = language === "ur";
   const s = (en, ur) => (isUrdu ? ur : en);
 
-  const [username, setUsername] = useState(
-    () => localStorage.getItem("ebm-username") || "Dr. Researcher"
-  );
-  const [userEmail] = useState(
-    () => localStorage.getItem("ebm-email") || "user@gmail.com"
-  );
-  const [editingName, setEditingName] = useState(false);
-  const [draftName, setDraftName] = useState(username);
+  const [editingName, setEditingName]     = useState(false);
+  const [draftName, setDraftName]         = useState(user?.username ?? "");
+  const [saving, setSaving]               = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
-  const saveUsername = () => {
-    const name = draftName.trim() || username;
-    setUsername(name);
-    localStorage.setItem("ebm-username", name);
-    setEditingName(false);
-    toast({ title: s("Username updated", "صارف نام اپڈیٹ ہو گیا") });
+  const saveUsername = async () => {
+    const name = draftName.trim();
+    if (!name) {
+      toast({ title: s("Username cannot be empty", "صارف نام خالی نہیں ہو سکتا"), variant: "destructive" });
+      return;
+    }
+    if (name === user?.username) { setEditingName(false); return; }
+    setSaving(true);
+    try {
+      const updated = await updateUsername(name);
+      updateUser({ username: updated.username });
+      setEditingName(false);
+      toast({ title: s("Username updated", "صارف نام اپڈیٹ ہو گیا") });
+    } catch {
+      toast({ title: s("Error", "خرابی"), description: s("Could not update username.", "صارف نام اپڈیٹ نہیں ہو سکا۔"), variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDeleteAccount = () => {
+  const handleDeleteAccount = async () => {
     setShowDeleteDialog(false);
+    try {
+      const token = JSON.parse(localStorage.getItem("ebm_user") || "{}").token;
+      await fetch(`${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api"}/users/me`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      // proceed with local cleanup regardless
+    }
     localStorage.clear();
     toast({
       title: s("Account deleted", "اکاؤنٹ حذف ہو گیا"),
@@ -63,25 +82,27 @@ const Account = () => {
                 onKeyDown={(e) => e.key === "Enter" && saveUsername()}
                 className="h-10 bg-background text-foreground"
                 autoFocus
+                disabled={saving}
               />
-              <Button size="sm" onClick={saveUsername}>
-                {s("Save", "محفوظ کریں")}
+              <Button size="sm" onClick={saveUsername} disabled={saving}>
+                {saving ? "..." : s("Save", "محفوظ کریں")}
               </Button>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => { setEditingName(false); setDraftName(username); }}
+                disabled={saving}
+                onClick={() => { setEditingName(false); setDraftName(user?.username ?? ""); }}
               >
                 {s("Cancel", "رد کریں")}
               </Button>
             </div>
           ) : (
             <div className="flex items-center justify-between">
-              <span className="text-foreground font-medium">{username}</span>
+              <span className="text-foreground font-medium">{user?.username}</span>
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => { setDraftName(username); setEditingName(true); }}
+                onClick={() => { setDraftName(user?.username ?? ""); setEditingName(true); }}
               >
                 {s("Change", "تبدیل کریں")}
               </Button>
@@ -96,7 +117,7 @@ const Account = () => {
             {s("Email address", "ایمیل پتہ")}
           </label>
           <div className="flex items-center justify-between">
-            <span className="text-foreground font-medium">{userEmail}</span>
+            <span className="text-foreground font-medium">{user?.email}</span>
             <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
               {s("Read-only", "صرف پڑھنے کے لیے")}
             </span>

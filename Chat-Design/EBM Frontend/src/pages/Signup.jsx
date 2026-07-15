@@ -123,7 +123,7 @@ const Signup = () => {
                   required
                 />
               </div>
-              <p className="text-xs text-muted-foreground">Used to log in. Cannot be changed later.</p>
+              <p className="text-xs text-muted-foreground"></p>
             </div>
 
             <div className="space-y-2">

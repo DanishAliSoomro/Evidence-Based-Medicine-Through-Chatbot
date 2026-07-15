@@ -17,7 +17,6 @@ import NotFound from "./pages/NotFound";
 import NotAuthorized from "./pages/NotAuthorized";
 import General from "./pages/settings/General";
 import Chat from "./pages/settings/Chat";
-import DataControl from "./pages/settings/DataControl";
 import Account from "./pages/settings/Account";
 
 /* ---------- Tooltip provider (radix passthrough) ---------- */
@@ -128,7 +127,6 @@ const App = () => (
             <Route index element={<Navigate to="general" replace />} />
             <Route path="general" element={<General />} />
             <Route path="chat" element={<Chat />} />
-            <Route path="datacontrol" element={<DataControl />} />
             <Route path="account" element={<Account />} />
           </Route>
 <Route path="/403" element={<NotAuthorized />} />

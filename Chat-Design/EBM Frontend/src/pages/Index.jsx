@@ -83,11 +83,12 @@ const Index = () => {
     navigate("/", { replace: true });
   };
 
-  const handleSendMessage = useCallback(async (content) => {
+  const handleSendMessage = useCallback(async ({ content, attachment = null }) => {
     setMessages((prev) => [...prev, {
       id: `user-${Date.now()}`,
       role: "user",
       content,
+      attachment,
       timestamp: new Date(),
     }]);
     setIsLoading(true);

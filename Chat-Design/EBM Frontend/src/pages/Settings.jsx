@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { Palette, MessageSquare, Database, UserCircle2, ArrowLeft } from "lucide-react";
+import { Palette, MessageSquare, UserCircle2, ArrowLeft } from "lucide-react";
 import SparkleIcon from "@/components/SparkleIcon";
 import { useDarkMode } from "@/hooks/use-dark-mode";
 import { useLanguage } from "@/hooks/use-language";
@@ -7,7 +7,6 @@ import { useLanguage } from "@/hooks/use-language";
 const sections = [
   { path: "general",     label: "General",        labelUr: "عمومی",              icon: Palette },
   { path: "chat",        label: "Chat",            labelUr: "گفتگو",              icon: MessageSquare },
-  { path: "datacontrol", label: "Data Control",    labelUr: "ڈیٹا کنٹرول",        icon: Database },
   { path: "account",     label: "Account",         labelUr: "اکاؤنٹ",             icon: UserCircle2 },
 ];
 
