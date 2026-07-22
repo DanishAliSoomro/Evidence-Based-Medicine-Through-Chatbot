@@ -1,385 +1,580 @@
 # EBM-Connection — System Architecture
 
-## Overview
-
-EBM-Connection is a medical evidence retrieval system built on **GraphRAG** (Graph Retrieval-Augmented Generation). It ingests PMC (PubMed Central) research articles, builds a knowledge graph from them, and exposes a chat interface where users can query medical literature using natural language.
-
 ---
 
-## High-Level Architecture
+## High-Level Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        User (Browser)                           │
-└─────────────────────────┬───────────────────────────────────────┘
-                          │ HTTP
-                          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                  React Frontend  (port 8080)                     │
-│              Vite dev server — proxies /api/* to :8000           │
-└─────────────────────────┬───────────────────────────────────────┘
-                          │ REST /api/*
-                          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│               FastAPI Backend  (port 8000)                       │
+│                        BROWSER (React + Vite)                   │
 │                                                                  │
-│  ┌────────────┐  ┌──────────────┐  ┌─────────────────────────┐  │
-│  │ chat.py    │  │  ingest.py   │  │       health.py         │  │
-│  │ (sessions, │  │ (PMC PDF     │  │    GET /api/health      │  │
-│  │  messages, │  │  ingestion)  │  └─────────────────────────┘  │
-│  │  users)    │  └──────┬───────┘                               │
-│  └─────┬──────┘         │                                        │
-│        │                │                                        │
-│        ▼                ▼                                        │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │                   Services Layer                         │    │
-│  │  GraphRAGService · PDFProcessingService                  │    │
-│  │  GraphRelationExtractor · TextChunker · PMCIngestion     │    │
-│  └───────────────┬─────────────────────┬────────────────────┘    │
-│                  │                     │                          │
-└──────────────────┼─────────────────────┼──────────────────────────┘
-                   │                     │
-         ┌─────────▼──────┐   ┌──────────▼──────────┐
-         │   Neo4j Graph  │   │  SQLite (Relational) │
-         │   Database     │   │  medical_rag.db      │
-         │  (port 7687)   │   └─────────────────────┘
-         └────────────────┘
-                   │
-         ┌─────────▼──────────┐
-         │  Azure OpenAI API  │
-         │  gpt-4.1-mini      │
-         └────────────────────┘
+│   ┌──────────┐  ┌────────────┐  ┌──────────┐  ┌────────────┐  │
+│   │  Login / │  │  Chat Page │  │ Settings │  │  403 / 404 │  │
+│   │  Signup  │  │  (Index)   │  │  Pages   │  │   Pages    │  │
+│   └──────────┘  └────────────┘  └──────────┘  └────────────┘  │
+└────────────────────────┬────────────────────────────────────────┘
+                         │  HTTP + JSON
+                         │  Authorization: Bearer <token> on every request
+                         │  Vite proxy:  /api  →  localhost:8000
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    FASTAPI BACKEND  (main_api.py)               │
+│                                                                  │
+│          Routes  →  Services  →  Repositories  →  Utils         │
+└──────┬──────────────────────┬────────────────────────┬──────────┘
+       │                      │                        │
+       ▼                      ▼                        ▼
+┌─────────────┐     ┌──────────────────┐     ┌────────────────────┐
+│   SQLite    │     │      Neo4j       │     │  Azure OpenAI      │
+│             │     │                  │     │  GPT-4o mini       │
+│  users      │     │  Chunks (vectors)│     │                    │
+│  sessions   │     │  Entities        │     │  Chat generation   │
+│  messages   │     │  Relationships   │     │  Embeddings        │
+└─────────────┘     └──────────────────┘     │  Vision (images)   │
+                                             │  Classification    │
+                                             │  Graph extraction  │
+                                             └────────────────────┘
 ```
 
 ---
 
-## Technology Stack
-
-### Backend
-| Layer | Technology | Purpose |
-|---|---|---|
-| Web Framework | FastAPI | REST API, background tasks, CORS |
-| ORM | SQLAlchemy 2.0 (async) | SQLite access |
-| Graph DB Client | neo4j (Python driver) | Neo4j read/write |
-| Embeddings | SentenceTransformer `all-MiniLM-L6-v2` | 384-dim vector embeddings |
-| LLM | Azure OpenAI `gpt-4.1-mini` | Response generation, entity extraction |
-| PDF Extraction | PyMuPDF (fitz) | Text extraction from PMC PDFs |
-| Config | Pydantic Settings + python-dotenv | Environment variable management |
-| Server | Uvicorn | ASGI server |
-
-### Frontend
-| Layer | Technology | Purpose |
-|---|---|---|
-| UI Framework | React 18 | Component-based UI |
-| Build Tool | Vite 5 | Dev server, bundling, API proxy |
-| Routing | React Router v6 | Client-side navigation |
-| Styling | Tailwind CSS + shadcn/ui | Design system |
-| Forms | React Hook Form + Zod | Form state and validation |
-| HTTP Client | Native `fetch` | API calls via `chatApi.js` |
-
-### Databases
-| Database | Type | Purpose |
-|---|---|---|
-| Neo4j | Graph DB | Knowledge graph (chunks, entities, relationships) |
-| SQLite (`medical_rag.db`) | Relational | Users, chat sessions, messages |
-| SQLite (`ingestion_checkpoint.db`) | Relational | PDF ingestion tracking |
-
----
-
-## Directory Structure
+## Frontend Structure
 
 ```
-EBM-Connection/
-├── main_api.py                      # FastAPI app entry point
-├── config.py                        # Pydantic settings (env vars)
-├── requirements.txt                 # Python dependencies
-├── .env                             # Secrets (Azure, Neo4j)
-├── medical_rag.db                   # SQLite chat/user database
-├── ingestion_checkpoint.db          # Ingestion state tracking
-├── ingest_pmc.py                    # CLI script for batch ingestion
+src/
 │
-├── api/
-│   ├── database.py                  # SQLAlchemy async engine setup
-│   ├── models.py                    # ORM models (User, Session, Message)
-│   ├── schemas.py                   # Pydantic request/response schemas
-│   ├── routes/
-│   │   ├── chat.py                  # Users, sessions, messages, chat endpoints
-│   │   ├── health.py                # GET /api/health
-│   │   └── ingest.py                # PMC ingestion trigger + status
-│   ├── services/
-│   │   ├── graph_rag_service.py     # Core RAG orchestrator
-│   │   ├── graph_extractor.py       # LLM entity/relationship extraction
-│   │   ├── pdf_processing_service.py# Full PDF → graph pipeline
-│   │   ├── pdf_extractor.py         # PyMuPDF text extraction
-│   │   ├── text_chunker.py          # Chunking + embedding generation
-│   │   ├── pmc_ingestion_service.py # Batch PMC folder ingestion
-│   │   └── prompts.py               # LLM prompt templates
-│   ├── repositories/
-│   │   ├── neo4j_repsitory.py       # Neo4j queries (store + retrieve)
-│   │   └── chat_history_repo.py     # SQLite chat history queries
-│   └── utils/
-│       ├── text_cleaning.py         # PDF text normalization
-│       └── parse_plaintext.py       # Entity/relationship output parsing
+├── pages/
+│   ├── Index.jsx ──────────────── Main chat page (owns all app state)
+│   ├── Login.jsx ──────────────── Email + password sign in
+│   ├── Signup.jsx ─────────────── Register → redirects to /login?registered=1
+│   ├── NotAuthorized.jsx ──────── 403 page (wrong user accessing a session)
+│   ├── NotFound.jsx ───────────── 404 page
+│   └── settings/
+│       ├── General.jsx ────────── Language toggle (English / Urdu)
+│       ├── Chat.jsx
+│       ├── Account.jsx
+│       └── DataControl.jsx
 │
-└── Chat-Design/EBM Frontend/        # React frontend
-    ├── vite.config.js               # Proxy: /api/* → localhost:8000
-    └── src/
-        ├── App.jsx                  # Router + providers
-        ├── api/chatApi.js           # All API call functions
-        ├── pages/                   # Route-level page components
-        ├── components/              # Shared UI components
-        ├── hooks/                   # Custom React hooks
-        └── lib/utils.js             # Utility helpers
+├── components/
+│   ├── ChatSidebar.jsx ────────── Session list + New Chat + user dropdown
+│   ├── ConversationList.jsx ───── Search bar + session rows + delete
+│   ├── ChatMain.jsx ───────────── Welcome screen / message feed + footer
+│   ├── ChatInput.jsx ──────────── Textarea, file attach, Ctrl+V paste, send
+│   ├── ChatMessage.jsx ────────── Renders message + image lightbox
+│   └── CollapsedSidebar.jsx ───── Collapsed sidebar icon bar
+│
+├── hooks/
+│   ├── use-auth.js ────────────── user + JWT token  →  localStorage
+│   ├── use-dark-mode.js ───────── dark mode with cross-tab event sync
+│   └── use-language.js ────────── en/ur language with cross-tab event sync
+│
+└── api/
+    └── chatApi.js ─────────────── All fetch calls, auto-attaches Bearer token
 ```
 
 ---
 
-## Database Schemas
-
-### SQLite — `medical_rag.db`
+## Backend Layer Diagram
 
 ```
-users
-├── id          INTEGER PRIMARY KEY
-├── username    TEXT UNIQUE
-├── email       TEXT UNIQUE
-└── password    TEXT (hashed)
-
-chat_sessions
-├── id          INTEGER PRIMARY KEY
-├── owner_id    INTEGER → users.id
-├── title       TEXT
-├── created_at  DATETIME
-└── is_deleted  BOOLEAN
-
-chat_messages
-├── id          INTEGER PRIMARY KEY
-├── session_id  INTEGER → chat_sessions.id
-├── role        TEXT  ("user" | "assistant")
-├── content     TEXT
-└── timestamp   DATETIME
+┌──────────────────────────────────────────────────────────────────┐
+│                         ROUTES LAYER                             │
+│               (HTTP boundary — accepts requests)                 │
+│                                                                  │
+│   auth.py    →  POST /api/users          POST /api/login         │
+│   chat.py    →  GET/POST/PATCH/DELETE /api/sessions              │
+│                 POST /api/chat                                   │
+│   ingest.py  →  POST /api/ingest/pmc    GET /api/ingest/pmc/status│
+│   vision.py  →  POST /api/vision/test   POST /api/pdf/test       │
+│   health.py  →  GET  /api/health                                 │
+└─────────────────────────┬────────────────────────────────────────┘
+                          │ calls
+                          ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                        SERVICES LAYER                            │
+│                (Business logic + orchestration)                  │
+│                                                                  │
+│   registry.py             auth: hash password, issue JWT         │
+│   graph_rag_service.py    4-step GraphRAG pipeline               │
+│   pmc_ingestion_service.py  batch PMC folder processing          │
+│   pdf_processing_service.py  PDF → chunks → Neo4j               │
+│   graph_extractor.py      LLM entity + relationship extraction   │
+│   text_chunker.py         split text, compute embeddings         │
+│   pdf_extractor.py        PMC PDF files → raw text              │
+└─────────────────────────┬────────────────────────────────────────┘
+                          │ calls
+                          ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                      REPOSITORIES LAYER                          │
+│                   (Database commands only)                       │
+│                                                                  │
+│   chat_history_repo.py   all SQLite reads + writes               │
+│   neo4j_repository.py    vector search + graph traversal         │
+└─────────────────────────┬────────────────────────────────────────┘
+                          │ calls
+                          ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                        UTILS LAYER                               │
+│                (Pure functions, no side effects)                 │
+│                                                                  │
+│   security.py        SHA256 hash, JWT encode/decode              │
+│   vision.py          image base64  →  text  (GPT-4o mini)        │
+│   classifier.py      text  →  medical? high/medium/low           │
+│   pdf_extractor.py   PDF bytes  →  plain text  (PyMuPDF)         │
+│   parse_plaintext.py parse LLM entity/relationship output        │
+│   text_cleaning.py   text normalisation                          │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-### Neo4j — Knowledge Graph
+---
+
+## Database Schema
 
 ```
-Nodes:
-  (:Chunk)
-  ├── chunk_id      STRING (unique)
-  ├── text          STRING
-  ├── source        STRING (PDF filename)
-  ├── page          INTEGER
-  └── embedding     FLOAT[] (384 dimensions)
+┌─────────────────────────────────────────────────────────────────┐
+│                           SQLITE                                │
+│                        medical_rag.db                           │
+│                                                                 │
+│  ┌──────────────────────────────────┐                          │
+│  │              users               │                          │
+│  ├──────────────────────────────────┤                          │
+│  │  id             INTEGER   PK     │                          │
+│  │  username       STRING           │                          │
+│  │  email          STRING    UNIQUE │                          │
+│  │  password_hash  STRING           │                          │
+│  │  oauth_provider STRING  ◄──────────── defined, not yet      │
+│  │  oauth_id       STRING  ◄──────────── implemented           │
+│  │  auth_type      STRING  ◄──────────── (dead columns)        │
+│  │  created_at     DATETIME         │                          │
+│  └────────────────┬─────────────────┘                          │
+│                   │ 1                                           │
+│                   │ has many                                    │
+│                   ▼ N                                           │
+│  ┌──────────────────────────────────┐                          │
+│  │           chat_sessions          │                          │
+│  ├──────────────────────────────────┤                          │
+│  │  id          INTEGER   PK        │                          │
+│  │  user_id     INTEGER   FK ───────────► users.id             │
+│  │  title       STRING              │                          │
+│  │  created_at  DATETIME            │                          │
+│  └────────────────┬─────────────────┘                          │
+│                   │ 1                                           │
+│                   │ has many                                    │
+│                   ▼ N                                           │
+│  ┌──────────────────────────────────┐                          │
+│  │           chat_messages          │                          │
+│  ├──────────────────────────────────┤                          │
+│  │  id          INTEGER   PK        │                          │
+│  │  session_id  INTEGER   FK ───────────► chat_sessions.id     │
+│  │  role        STRING              │  "user" or "assistant"   │
+│  │  content     TEXT                │                          │
+│  │  timestamp   DATETIME            │                          │
+│  └──────────────────────────────────┘                          │
+└─────────────────────────────────────────────────────────────────┘
 
-  (:Entity)
-  ├── name          STRING (unique, fuzzy-deduplicated)
-  └── type          STRING (disease | drug | symptom | treatment | etc.)
+┌─────────────────────────────────────────────────────────────────┐
+│                           NEO4J                                 │
+│                       Knowledge Graph                           │
+│                                                                 │
+│   (:Chunk)                                                      │
+│     chunk_id, content, embedding (384-dim vector)              │
+│     page_number, content_id                                     │
+│                                                                 │
+│   (:Entity)                                                     │
+│     name, type, description                                     │
+│     types: disease / drug / gene / symptom / treatment /        │
+│            biomarker / clinical trial / guideline / organ ...   │
+│                                                                 │
+│   [:RELATIONSHIP]                                               │
+│     source ──► target                                           │
+│     description, strength (1–10)                                │
+│                                                                 │
+│   (:Chunk) ──[:CONTAINS]──► (:Entity)                          │
+│   (:Entity) ──[:RELATED]──► (:Entity)                          │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-Relationships:
-  (:Chunk)-[:MENTIONS]->(:Entity)
-  (:Entity)-[:RELATED_TO {strength: FLOAT}]->(:Entity)
+---
 
-Indexes:
-  Vector index on Chunk.embedding  (cosine similarity)
-  Full-text index on Entity.name   (fuzzy search)
+## Flow 1 — Authentication
+
+```
+REGISTER
+────────
+Browser                     FastAPI                      SQLite
+   │                           │                            │
+   │  POST /api/users          │                            │
+   │  { username,email,pass }  │                            │
+   │──────────────────────────►│                            │
+   │                           │  check email exists?       │
+   │                           │───────────────────────────►│
+   │                           │◄── exists / not found ─────│
+   │                           │                            │
+   │                           │  SHA256(password)          │
+   │                           │  INSERT user               │
+   │                           │───────────────────────────►│
+   │                           │◄── user row ───────────────│
+   │                           │                            │
+   │                           │  sign JWT { user_id }      │
+   │◄──────────────────────────│                            │
+   │  { access_token, user }   │                            │
+   │  saved to localStorage    │                            │
+
+
+EVERY PROTECTED REQUEST
+───────────────────────
+Browser                FastAPI  (api/dependencies.py)
+   │                          │
+   │  Authorization:          │
+   │  Bearer <token>          │
+   │─────────────────────────►│
+   │                          │  HTTPBearer extracts token
+   │                          │  decode_token() → user_id
+   │                          │  injected into route handler
+```
+
+---
+
+## Flow 2 — Chat (the main flow)
+
+```
+User types message → hits Send
+
+Browser              FastAPI /api/chat          SQLite       Neo4j      Azure OpenAI
+   │                       │                      │             │              │
+   │  POST /api/chat        │                      │             │              │
+   │  { query,session_id } │                      │             │              │
+   │  Bearer <token>        │                      │             │              │
+   │──────────────────────►│                      │             │              │
+   │                       │  decode JWT           │             │              │
+   │                       │  get user_id          │             │              │
+   │                       │                      │             │              │
+   │                       │  session_id null?     │             │              │
+   │                       │  → CREATE session     │             │              │
+   │                       │─────────────────────►│             │              │
+   │                       │◄── session.id ────────│             │              │
+   │                       │                      │             │              │
+   │                       │  SAVE user message    │             │              │
+   │                       │─────────────────────►│             │              │
+   │                       │                      │             │              │
+   │          ┌────────────────── GraphRAG Pipeline ──────────────────────┐   │
+   │          │            │                      │             │          │   │
+   │          │  Step 1    │  embed query ─────────────────────────────────────►
+   │          │            │  ◄── query vector (384-dim) ───────────────────────
+   │          │            │                      │             │          │   │
+   │          │  Step 2    │  vector search ────────────────────►          │   │
+   │          │            │  graph traversal ──────────────────►          │   │
+   │          │            │  ◄── chunks + entities + rels ─────           │   │
+   │          │            │                      │             │          │   │
+   │          │  Step 3    │  fuse into one large context prompt│          │   │
+   │          │            │                      │             │          │   │
+   │          │  Step 4    │  send to GPT-4o mini ─────────────────────────────►
+   │          │            │  ◄── answer ──────────────────────────────────────
+   │          └────────────────────────────────────────────────────────────┘   │
+   │                       │                      │             │              │
+   │                       │  SAVE assistant msg  │             │              │
+   │                       │─────────────────────►│             │              │
+   │◄──────────────────────│                      │             │              │
+   │  { answer, session_id}│                      │             │              │
+
+
+  ⚠  If Neo4j / LLM is offline:
+     → fallback message saved to SQLite instead
+     → no crash, user sees a graceful error message
+```
+
+---
+
+## Flow 3 — PMC Knowledge Base Ingestion
+
+```
+POST /api/ingest/pmc  →  triggers background task
+
+┌──────────────────────────────────────────────────────────────────┐
+│                        Background Task                           │
+│                                                                  │
+│  PMC folders on disk                                             │
+│         │                                                        │
+│         │  discover_jobs()                                       │
+│         ▼                                                        │
+│  For each PDF:                                                   │
+│         │                                                        │
+│         ▼                                                        │
+│  pdf_extractor.py  ──────────────────►  raw text per page       │
+│         │                                                        │
+│         ▼                                                        │
+│  text_cleaning.py  ──────────────────►  normalised text         │
+│         │                                                        │
+│         ▼                                                        │
+│  text_chunker.py                                                 │
+│    ├── overlapping chunks (1000 chars, 100 overlap)              │
+│    └── SentenceTransformer embeddings (384-dim)                  │
+│         │                                                        │
+│         ▼                                                        │
+│  graph_extractor.py  →  GPT-4o mini                             │
+│    "Extract entities and relationships from this text"           │
+│    ◄── ("entity" METFORMIN | drug | first-line diabetes drug)   │
+│    ◄── ("relationship" METFORMIN → TYPE2_DIABETES | treats | 10)│
+│         │                                                        │
+│         ▼                                                        │
+│  neo4j_repository.py                                             │
+│    ├── store (:Chunk) nodes with embeddings                      │
+│    ├── store (:Entity) nodes                                     │
+│    └── store [:RELATIONSHIP] edges                               │
+│         │                                                        │
+│         ▼                                                        │
+│  checkpoint.json  ──  tracks progress, safe to resume on crash  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Flow 4 — Image in Chat (Vision)
+
+```
+User attaches image or Ctrl+V pastes screenshot
+
+Browser (client-side)                api/utils/vision.py     Azure OpenAI
+   │                                         │                    │
+   │  FileReader → base64 dataUrl            │                    │
+   │  thumbnail preview shown in input       │                    │
+   │  image stored in message on send        │                    │
+   │  rendered in chat with lightbox         │                    │
+   │                                         │                    │
+   │── [TEST] POST /api/vision/test ────────►│                    │
+   │           { file: image upload }        │  base64 dataUrl    │
+   │                                         │───────────────────►│
+   │                                         │◄── text description│
+   │◄────────────────────────────────────────│                    │
+   │  { description: "ECG showing..." }      │                    │
+
+  ⚠  Image → chat pipeline is UI-complete.
+     Next step: send dataUrl to /api/chat,
+     prepend GPT-4o description to query before GraphRAG.
+```
+
+---
+
+## Flow 5 — PDF Upload + Classification Gate
+
+```
+User attaches PDF
+
+                  api/utils/              api/utils/         Azure OpenAI
+                  pdf_extractor.py        classifier.py
+                        │                     │                   │
+PDF bytes ─────────────►│                     │                   │
+                        │  PyMuPDF            │                   │
+                        │  extract text        │                   │
+                        │────────────────────►│                   │
+                        │                     │  first 600 words  │
+                        │                     │──────────────────►│
+                        │                     │◄── JSON result ───│
+                        │                     │                   │
+                        │  { is_medical: true,│                   │
+                        │    confidence: high }│                   │
+                        │          │           │                   │
+                        │     ┌────┴────┐      │                   │
+                        │  YES│         │NO    │                   │
+                        │  +high        │or medium/low             │
+                        │     ▼         ▼                         │
+                        │  Ingest    Skip Neo4j                   │
+                        │  into      use as                       │
+                        │  Neo4j     context only                 │
+                        │  pipeline                               │
+
+  RULE: is_medical=true AND confidence=high  →  Ingest into Neo4j
+        anything else                         →  Skip Neo4j
+
+  ⚠  Gate is tested at /api/pdf/test.
+     Wiring into /api/chat is the next step.
+```
+
+---
+
+## Security Model
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        SECURITY LAYERS                           │
+│                                                                  │
+│  1. PASSWORD STORAGE                                             │
+│                                                                  │
+│     plain password ──► SHA256 (hashlib) ──► stored hash         │
+│     never stored plain  ·  never sent after login               │
+│                                                                  │
+│  2. JWT TOKEN                                                    │
+│                                                                  │
+│     { user_id } ──► HS256 signed (python-jose) ──► access_token │
+│     stored in localStorage                                       │
+│     sent as:  Authorization: Bearer <token>                      │
+│                                                                  │
+│  3. ROUTE PROTECTION                                             │
+│                                                                  │
+│     HTTPBearer ──► decode_token() ──► user_id                   │
+│     every /api/sessions and /api/chat route is guarded           │
+│                                                                  │
+│  4. SESSION ISOLATION                                            │
+│                                                                  │
+│     session.user_id != requesting user_id  ──►  403             │
+│     frontend catches err.status === 403    ──►  redirect /403   │
+│                                                                  │
+│  5. CORS                                                         │
+│                                                                  │
+│     allow_origins: ["*"]   ◄─── open (dev only)                 │
+│     restrict before going to production                          │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## API Endpoints
 
-### Health
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/health` | Health check |
-
-### Users & Auth
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/users` | List all users |
-| `POST` | `/api/users` | Register new user |
-| `POST` | `/api/login` | Login (username or email + password) |
-
-### Chat Sessions
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/sessions?owner_id=X` | List sessions for a user |
-| `POST` | `/api/sessions` | Create new session |
-| `GET` | `/api/sessions/:id` | Get session with messages |
-| `PATCH` | `/api/sessions/:id` | Rename session |
-| `DELETE` | `/api/sessions/:id` | Delete session |
-| `GET` | `/api/sessions/:id/messages` | Get all messages in session |
-
-### Chat (Core)
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/chat` | Send query → get AI response |
-
-**Request body:**
-```json
-{
-  "query": "What is the recommended treatment for Type 2 diabetes?",
-  "session_id": 123,
-  "owner_id": 456
-}
 ```
-**Response:**
-```json
-{
-  "session_id": 123,
-  "answer": "Based on the evidence..."
-}
-```
+AUTH
+  POST  /api/users              register new user
+  POST  /api/login              login → returns JWT
 
-### Ingestion
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/ingest/pmc` | Start background PMC ingestion |
-| `GET` | `/api/ingest/pmc/status` | Check ingestion progress |
+SESSIONS  (all require Bearer token)
+  GET   /api/sessions           list this user's sessions
+  POST  /api/sessions           create new session
+  PATCH /api/sessions/:id       rename session
+  DELETE/api/sessions/:id       delete session
+  GET   /api/sessions/:id/messages   get all messages in session
 
----
+CHAT  (requires Bearer token)
+  POST  /api/chat               send query → get AI response
 
-## Core Data Flows
+INGESTION
+  POST  /api/ingest/pmc         start background PMC ingestion
+  GET   /api/ingest/pmc/status  check ingestion progress
 
-### 1. Chat Query Flow
+VISION (test only — no auth)
+  POST  /api/vision/test        upload image → get text description
+  POST  /api/pdf/test           upload PDF  → extracted text + classification
 
-```
-User types query
-      │
-      ▼
-POST /api/chat
-      │
-      ▼
-GraphRAGService
-  ├── 1. Embed query          → SentenceTransformer (384-dim vector)
-  ├── 2. Vector search        → Neo4j cosine similarity on Chunk.embedding
-  ├── 3. Graph traversal      → Expand via Entity → RELATED_TO → Entity
-  ├── 4. Context fusion       → Merge text chunks + entities + relationships
-  └── 5. LLM generation       → Azure OpenAI (prompt + conversation history)
-      │
-      ▼
-Store user message + assistant response in SQLite
-      │
-      ▼
-Return { session_id, answer } to frontend
-```
-
-### 2. PDF Ingestion Flow
-
-```
-PMC PDF Files
-      │
-      ▼
-PDFExtractor (PyMuPDF)       → Raw text per page
-      │
-      ▼
-TextCleaner                  → Remove citations ([n]), normalize whitespace
-      │
-      ▼
-TextChunker                  → Overlapping chunks (1000 chars, 100 overlap)
-                               + SentenceTransformer embeddings per chunk
-      │
-      ▼
-GraphRelationExtractor (LLM) → Extract entities + relationships per chunk
-      │
-      ▼
-Neo4jRepository
-  ├── Store Chunk nodes with embeddings
-  ├── Store Entity nodes (fuzzy dedup by name)
-  ├── Create MENTIONS edges (Chunk → Entity)
-  └── Create RELATED_TO edges (Entity → Entity)
-      │
-      ▼
-Checkpoint DB                → Mark file as ingested (fingerprint + status)
-```
-
-### 3. Authentication Flow
-
-```
-User submits login form
-      │
-      ▼
-POST /api/login { identifier, password }
-      │
-      ▼
-Backend validates → returns user object
-      │
-      ▼
-Frontend stores user in localStorage (use-auth.js hook)
-      │
-      ▼
-Protected routes check localStorage → redirect to /login if absent
+HEALTH
+  GET   /api/health             health check
 ```
 
 ---
 
-## Frontend Pages & Routes
+## Tech Stack
 
-| Route | Page | Description |
-|---|---|---|
-| `/` | `Index.jsx` | Main chat interface (auth required) |
-| `/chat/:sessionId` | `Index.jsx` | Load specific conversation |
-| `/login` | `Login.jsx` | Login form |
-| `/signup` | `Signup.jsx` | Registration form |
-| `/settings` | `Settings.jsx` | Settings layout |
-| `/settings/general` | `General.jsx` | Theme, language, font size |
-| `/settings/chat` | `Chat.jsx` | Export and clear conversations |
-| `/settings/datacontrol` | `DataControl.jsx` | API key management |
-| `/settings/account` | `Account.jsx` | Username, email, account deletion |
-| `*` | `NotFound.jsx` | 404 catch-all |
+```
+FRONTEND
+  React 18          component UI
+  Vite              dev server + build + proxy /api → :8000
+  Tailwind CSS      styling
+  shadcn/ui         component library (Radix UI primitives)
+  React Router v6   client-side routing
 
----
+BACKEND
+  FastAPI           REST API + background tasks
+  Uvicorn           ASGI server
+  SQLAlchemy async  ORM for SQLite
+  aiosqlite         async SQLite driver
+  python-jose       JWT signing (HS256)
+  python-multipart  file upload support
 
-## Configuration & Environment
+DATABASES
+  SQLite            users, sessions, messages  (medical_rag.db)
+  Neo4j             knowledge graph  (bolt://localhost:7687)
 
-All secrets are loaded from `.env` via Pydantic Settings:
+AI / ML
+  Azure OpenAI      GPT-4o mini  →  chat, extraction, vision, classification
+  sentence-transformers  local embeddings (all-MiniLM-L6-v2, 384-dim)
 
-```env
-# Azure OpenAI
-AZURE_OPENAI_ENDPOINT=https://...
-AZURE_OPENAI_KEY=...
-AZURE_DEPLOYMENT_NAME=gpt-4.1-mini
-
-# Neo4j
-NEO4J_URI=neo4j://127.0.0.1:7687
-NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=...
-NEO4J_DATABASE=neo4j
-
-# SQLite
-DATABASE_URL=sqlite+aiosqlite:///./medical_rag.db
+PDF
+  PyMuPDF (fitz)    PDF text extraction  (already in requirements)
 ```
 
 ---
 
-## Key Design Decisions
+## Feature Status
 
-| Decision | Rationale |
-|---|---|
-| **GraphRAG over plain RAG** | Entity relationships allow contextual expansion beyond raw vector similarity — better for medical evidence where concepts are interconnected |
-| **Neo4j for graph + vectors** | Single store for both vector search (embeddings) and graph traversal (entities/relationships) reduces infrastructure complexity |
-| **SQLite for chat history** | Lightweight relational store sufficient for user/session/message data; no separate DB server needed |
-| **Azure OpenAI** | Used for both response generation (gpt-4.1-mini) and entity extraction from PDF chunks |
-| **SentenceTransformer local** | Embeddings generated locally (no API cost per chunk); 384-dim `all-MiniLM-L6-v2` is fast and sufficient for semantic search |
-| **Vite proxy in dev** | Frontend dev server on :8080 proxies `/api/*` to backend :8000, avoiding CORS issues in development |
-| **Background tasks for ingestion** | PDF ingestion is slow (LLM calls per chunk); FastAPI BackgroundTasks keeps the HTTP response immediate |
+```
+✅  WORKING
+    Auth (register, login, JWT, session isolation)
+    Chat with GraphRAG pipeline
+    Neo4j offline fallback (saves message, graceful error)
+    Session CRUD (create, list, rename, delete)
+    PMC knowledge base ingestion with checkpoint resume
+    Dark mode — global, cross-tab sync
+    Language (en / ur) — global, cross-tab sync
+    Image attach with lightbox + Ctrl+V paste
+    POST /api/vision/test  (image file upload → text description)
+    POST /api/pdf/test     (PDF file upload → text + classification)
+    Medical classification gate (high confidence only → Neo4j)
+
+⚠   BUILT BUT NOT WIRED INTO CHAT YET
+    Image → vision → context prepended in /api/chat
+    PDF → extraction → classification gate → ingest or context in /api/chat
+
+🔲  DEFINED BUT UNUSED  (dead columns / dead code)
+    OAuth login    (oauth_provider, oauth_id, auth_type columns in DB)
+    Bookmarks      (UI button works, nothing saves to DB — lost on refresh)
+    Source nodes   (GraphRAG finds them, always returned as empty [])
+    SessionDetail  (schema exists, no route returns it)
+    updated_at     (no column on sessions — can't sort by last active)
+    Old ingest route (fully commented out in ingest.py)
+```
 
 ---
 
-## Startup
+## Directory Map
 
-### Backend
-```bash
-uvicorn main_api:app --host 0.0.0.0 --port 8000 --reload
 ```
-
-### Frontend (dev)
-```bash
-cd "Chat-Design/EBM Frontend"
-npm run dev        # Starts on http://localhost:8080
-```
-
-### PDF Ingestion (CLI)
-```bash
-python ingest_pmc.py   # Processes PMC articles from ../../PMC-articles
+EBM-Connection/
+│
+├── main_api.py                    FastAPI app entry + router registration
+├── config.py                      Pydantic settings (.env loader)
+├── requirements.txt
+├── .env                           secrets (Azure, Neo4j keys)
+├── medical_rag.db                 SQLite database
+├── ARCHITECTURE.md                this file
+│
+├── api/
+│   ├── database.py                async SQLAlchemy engine
+│   ├── models.py                  ORM models: User, Session, Message
+│   ├── schemas.py                 Pydantic request/response types
+│   ├── dependencies.py            JWT auth guard (get_current_user)
+│   │
+│   ├── routes/
+│   │   ├── auth.py                POST /users  POST /login
+│   │   ├── chat.py                sessions + /chat
+│   │   ├── ingest.py              PMC ingestion endpoints
+│   │   ├── vision.py              vision + pdf test endpoints
+│   │   └── health.py              GET /health
+│   │
+│   ├── services/
+│   │   ├── registry.py            auth business logic
+│   │   ├── graph_rag_service.py   4-step GraphRAG pipeline
+│   │   ├── pmc_ingestion_service.py  batch PMC ingestion
+│   │   ├── pdf_processing_service.py PDF → chunks → Neo4j
+│   │   ├── graph_extractor.py     LLM entity/relationship extraction
+│   │   ├── text_chunker.py        chunking + embeddings
+│   │   ├── pdf_extractor.py       PMC PDF → raw text
+│   │   └── prompts.py             LLM prompt templates
+│   │
+│   ├── repositories/
+│   │   ├── chat_history_repo.py   SQLite: users, sessions, messages
+│   │   └── neo4j_repsitory.py     Neo4j: store + vector search
+│   │
+│   └── utils/
+│       ├── security.py            SHA256 hash, JWT encode/decode
+│       ├── vision.py              image base64 → text description
+│       ├── classifier.py          text → medical classification
+│       ├── pdf_extractor.py       PDF bytes → plain text (PyMuPDF)
+│       ├── parse_plaintext.py     parse LLM entity output
+│       └── text_cleaning.py       text normalisation
+│
+└── Chat-Design/EBM Frontend/
+    ├── vite.config.js             proxy: /api → localhost:8000
+    └── src/
+        ├── App.jsx                router + providers
+        ├── pages/                 route-level pages
+        ├── components/            shared UI components
+        ├── hooks/                 use-auth, use-dark-mode, use-language
+        └── api/chatApi.js         all fetch calls + Bearer token
 ```

@@ -72,6 +72,7 @@ class SessionUpdate(BaseModel):
 class ChatRequest(BaseModel):
     query: str
     session_id: Optional[int] = None
+    pdf_context: Optional[str] = None
 
 
 

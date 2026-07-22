@@ -42,7 +42,7 @@ const Account = () => {
   const handleDeleteAccount = async () => {
     setShowDeleteDialog(false);
     try {
-      const token = JSON.parse(localStorage.getItem("ebm_user") || "{}").token;
+      const token = localStorage.getItem("ebm-token");
       await fetch(`${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api"}/users/me`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },

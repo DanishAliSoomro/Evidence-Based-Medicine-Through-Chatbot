@@ -59,23 +59,38 @@ class Neo4jRepository:
         r.strength = CASE WHEN $strength > r.strength THEN $strength ELSE r.strength END
     """
 
-    # --- Retrieval Query ---
+    # --- Retrieval Query (OLD — kept for reference) ---
+    # QUERY_HYBRID_RETRIEVAL_OLD = """
+    # CALL db.index.vector.queryNodes('chunk_embeddings', $top_k, $query_embedding)
+    # YIELD node AS chunk, score
+    # MATCH (chunk)-[:MENTIONS]->(e:Entity)   <- required MATCH drops entity-less chunks
+    # OPTIONAL MATCH (e)-[r:RELATED_TO]-(neighbor:Entity)
+    # RETURN
+    #     collect(DISTINCT chunk.text) AS chunk_contexts,  <- no score returned
+    #     collect(DISTINCT {name: e.name, type: e.type, description: e.description}) AS entities,
+    #     collect(DISTINCT {source: e.name, target: neighbor.name, description: r.descriptions, strength: r.strength}) AS relationships
+    # """
+
+    # --- Retrieval Query (NEW) ---
+    # OPTIONAL MATCH for chunk->entity so chunks without entities are still returned.
+    # Returns score per chunk so callers can apply a relevance threshold downstream.
     QUERY_HYBRID_RETRIEVAL = """
     CALL db.index.vector.queryNodes('chunk_embeddings', $top_k, $query_embedding)
     YIELD node AS chunk, score
-    MATCH (chunk)-[:MENTIONS]->(e:Entity)
+    OPTIONAL MATCH (chunk)-[:MENTIONS]->(e:Entity)
     OPTIONAL MATCH (e)-[r:RELATED_TO]-(neighbor:Entity)
-    RETURN 
-        collect(DISTINCT chunk.text) AS chunk_contexts,
+    WITH chunk, score, e, r, neighbor
+    RETURN
+        collect(DISTINCT {text: chunk.text, score: score}) AS chunk_contexts,
         collect(DISTINCT {
-            name: e.name, 
-            type: e.type, 
+            name: e.name,
+            type: e.type,
             description: e.description
         }) AS entities,
         collect(DISTINCT {
-            source: e.name, 
-            target: neighbor.name, 
-            description: r.descriptions, 
+            source: e.name,
+            target: neighbor.name,
+            description: r.descriptions,
             strength: r.strength
         }) AS relationships
     """
@@ -146,18 +161,20 @@ class Neo4jRepository:
         tx.run(self.QUERY_MERGE_RELATIONSHIP, source=source, target=target, description=description, strength=strength)
 
     def retrieve_hybrid_context(self, query_embedding: list[float], top_k: int = 5):
-        """Performs hybrid retrieval: Vector Search + Graph Traversal."""
+        """Performs hybrid retrieval: Vector Search + Graph Traversal.
+        chunk_contexts is now a list of {text, score} dicts for relevance filtering.
+        """
         with self.driver.session(database=self.database) as session:
             result = session.run(
                 self.QUERY_HYBRID_RETRIEVAL,
-                query_embedding=query_embedding, 
+                query_embedding=query_embedding,
                 top_k=top_k
             )
             record = result.single()
             if not record:
                 return {"chunk_contexts": [], "entities": [], "relationships": []}
             return {
-                "chunk_contexts": record["chunk_contexts"],
+                "chunk_contexts": record["chunk_contexts"],   # [{text, score}, ...]
                 "entities": record["entities"],
                 "relationships": record["relationships"]
             }

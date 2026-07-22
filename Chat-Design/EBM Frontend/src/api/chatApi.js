@@ -39,11 +39,11 @@ async function apiFetch(url, { timeoutMs = 60000, ...options } = {}) {
   }
 }
 
-export const sendMessage = (query, sessionId = null) =>
+export const sendMessage = (query, sessionId = null, pdfContext = null) =>
   apiFetch("/chat", {
     timeoutMs: 120000,
     method: "POST",
-    body: JSON.stringify({ query, session_id: sessionId }),
+    body: JSON.stringify({ query, session_id: sessionId, pdf_context: pdfContext || undefined }),
   });
 
 export const listSessions = () => apiFetch("/sessions");
@@ -82,6 +82,24 @@ export const updateUsername = (username) =>
     method: "PATCH",
     body: JSON.stringify({ username }),
   });
+
+export const uploadPdf = async (file) => {
+  const token = getToken();
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${BASE}/upload/pdf`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    const err = new Error(text || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
+};
 
 export const exportSessionCsv = async (sessionId, filename) => {
   const token = getToken();

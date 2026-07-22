@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 
 from api.repositories.chat_history_repo import ChatHistoryRepository
 from api.schemas import UserCreate, LoginRequest, UserResponse, TokenResponse
-from api.utils.security import hash_password, create_token
+from api.utils.security import hash_password, create_token, verify_password
 
 
 class RegistryService:
@@ -31,7 +31,7 @@ class RegistryService:
     async def login(self, payload: LoginRequest) -> TokenResponse:
         user = await self.repo.login_user(
             identifier=payload.identifier,
-            password_hash=hash_password(payload.password),
+            password=payload.password,
         )
         if not user:
             raise HTTPException(

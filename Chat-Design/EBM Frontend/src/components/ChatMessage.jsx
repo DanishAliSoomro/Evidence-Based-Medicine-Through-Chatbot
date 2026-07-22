@@ -1,4 +1,4 @@
-import { User, Copy, Bookmark, Check, FileText, X, ZoomIn } from "lucide-react";
+import { User, Copy, Check, FileText, X, ZoomIn } from "lucide-react";
 import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -141,13 +141,6 @@ const ChatMessage = ({ message, onBookmark }) => {
                                 title="Copy"
                             >
                                 {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                            </button>
-                            <button
-                                onClick={handleBookmark}
-                                className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                                title="Bookmark"
-                            >
-                                <Bookmark className={`w-4 h-4 ${message.bookmarked ? "fill-current" : ""}`} />
                             </button>
                         </div>
                     )}

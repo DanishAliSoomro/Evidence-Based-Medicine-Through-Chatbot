@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     # Database Settings
     DATABASE_URL: str = Field("sqlite+aiosqlite:///./medical_rag.db", env="DATABASE_URL")
 
+    # JWT Settings
+    JWT_SECRET_KEY: str = Field(..., env="JWT_SECRET_KEY")
+    JWT_ALGORITHM: str = Field("HS256", env="JWT_ALGORITHM")
+    JWT_EXPIRE_MINUTES: int = Field(1440, env="JWT_EXPIRE_MINUTES")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

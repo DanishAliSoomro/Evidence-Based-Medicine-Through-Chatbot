@@ -9,6 +9,7 @@ neo4j
 
 # Auth
 python-jose[cryptography]
+bcrypt
 
 # FastAPI & Backend Dependencies
 SQLAlchemy>=2.0.28

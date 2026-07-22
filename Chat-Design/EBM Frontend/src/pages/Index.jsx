@@ -33,6 +33,7 @@ const Index = () => {
   const [activeChat, setActiveChat] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const activePdfContextRef = useRef(null); // always-current PDF text for useCallback closures
   const currentSessionId = useRef(null);
 
   // Redirect to login if not authenticated
@@ -80,10 +81,44 @@ const Index = () => {
     setMessages([]);
     setActiveChat(null);
     currentSessionId.current = null;
+    activePdfContextRef.current = null;
     navigate("/", { replace: true });
   };
 
   const handleSendMessage = useCallback(async ({ content, attachment = null }) => {
+    // ── PDF upload ── extract text, store as context and show in chat
+    if (attachment) {
+      setIsLoading(true);
+      try {
+        const result = await api.uploadPdf(attachment.file);
+        activePdfContextRef.current = result.pdf_text;
+        // Show the PDF as a user message in chat
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `pdf-${Date.now()}`,
+            role: "user",
+            content: "",
+            attachment: { name: attachment.file.name, type: "application/pdf", isPdf: true },
+            timestamp: new Date(),
+          },
+          {
+            id: `pdf-ack-${Date.now()}`,
+            role: "assistant",
+            content: `PDF loaded: **${attachment.file.name}**. You can now ask questions about it.`,
+            timestamp: new Date(),
+          },
+        ]);
+      } catch (err) {
+        const detail = (() => { try { return JSON.parse(err.message).detail; } catch { return err.message; } })();
+        toast({ title: "PDF Rejected", description: detail, variant: "destructive" });
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // ── Add user message to UI ──
     setMessages((prev) => [...prev, {
       id: `user-${Date.now()}`,
       role: "user",
@@ -94,10 +129,10 @@ const Index = () => {
     setIsLoading(true);
 
     try {
-      const data = await api.sendMessage(content, currentSessionId.current);
+      const data = await api.sendMessage(content, currentSessionId.current, activePdfContextRef.current);
+
       currentSessionId.current = data.session_id;
       setActiveChat(data.session_id);
-      // replaceState avoids remounting Index when route changes from / to /chat/:id
       window.history.replaceState(null, "", `/chat/${data.session_id}`);
 
       setMessages((prev) => [...prev, {

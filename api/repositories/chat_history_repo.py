@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from api.models import Message, Session, User
+from api.utils.security import verify_password
 
 
 class ChatHistoryRepository:
@@ -57,12 +58,12 @@ class ChatHistoryRepository:
         result = await self.db.execute(select(User).where(User.email == email))
         return result.scalar_one_or_none()
 
-    async def login_user(self, identifier: str, password_hash: str) -> Optional[User]:
+    async def login_user(self, identifier: str, password: str) -> Optional[User]:
         result = await self.db.execute(
             select(User).where((User.username == identifier) | (User.email == identifier))
         )
         user = result.scalar_one_or_none()
-        if not user or user.password_hash != password_hash:
+        if not user or not verify_password(password, user.password_hash):
             return None
         return user
 

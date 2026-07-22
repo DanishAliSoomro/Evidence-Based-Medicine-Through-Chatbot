@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import StreamingResponse
@@ -156,7 +156,7 @@ async def chat_query(
     try:
         with GraphRAGService() as service:
             service.conversation_history = llm_history
-            answer = service.perform_graph_rag(request.query)
+            answer = service.perform_graph_rag(request.query, pdf_context=request.pdf_context)
     except Exception as e:
         answer = (
             "The knowledge service is currently unavailable. "
